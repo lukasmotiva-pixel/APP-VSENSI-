@@ -1,0 +1,323 @@
+// Sistema de Gestão V'Sensi — schema do banco de dados.
+// Convenções:
+//  - Valores monetários em CENTAVOS inteiros (Int). Nunca usar float para dinheiro.
+//  - Datas de negócio (competência, vencimento, liquidação) usam @db.Date (sem hora/fuso).
+//  - Nomes de tabelas/colunas em snake_case no banco; camelCase no código.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Acesso e segurança
+// ---------------------------------------------------------------------------
+
+/// Único usuário do sistema (Val). A coluna `singleton` é única e sempre `true`,
+/// então o banco rejeita a criação de um segundo usuário.
+model AdminUser {
+  id                String         @id @default(cuid())
+  singleton         Boolean        @unique @default(true)
+  name              String
+  email             String         @unique
+  passwordHash      String         @map("password_hash")
+  passwordChangedAt DateTime       @default(now()) @map("password_changed_at")
+  failedLoginCount  Int            @default(0) @map("failed_login_count")
+  lockedUntil       DateTime?      @map("locked_until")
+  lastLoginAt       DateTime?      @map("last_login_at")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+  sessions          Session[]
+  recoveryCodes     RecoveryCode[]
+
+  @@map("admin_users")
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique @map("token_hash")
+  userId     String    @map("user_id")
+  user       AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ip         String?
+  userAgent  String?   @map("user_agent")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastSeenAt DateTime  @default(now()) @map("last_seen_at")
+  expiresAt  DateTime  @map("expires_at")
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model RecoveryCode {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String    @map("code_hash")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("recovery_codes")
+}
+
+/// Tentativas de login por IP, para limitar força bruta.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  ip        String
+  success   Boolean
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([ip, createdAt])
+  @@map("login_attempts")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String // ex.: auth.login, finance.entry.create
+  entity    String? // ex.: Entry
+  entityId  String?  @map("entity_id")
+  summary   String
+  metadata  Json?
+  ip        String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Estrutura da empresa
+// ---------------------------------------------------------------------------
+
+enum OperationType {
+  KIOSK // quiosque físico
+  ONLINE // WhatsApp / Instagram
+  CENTRAL // administrativo / despesas centralizadas
+}
+
+/// Unidade de negócio (centro de resultado). Nomes e endereços são editáveis pelo Val.
+model Operation {
+  id          String             @id @default(cuid())
+  type        OperationType
+  name        String             @unique
+  address     String?
+  notes       String?
+  active      Boolean            @default(true)
+  sortOrder   Int                @default(0) @map("sort_order")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  entries     Entry[]
+  accounts    FinancialAccount[]
+
+  @@map("operations")
+}
+
+enum AccountType {
+  CASH // dinheiro em espécie (caixa do quiosque, cofre)
+  BANK // conta bancária
+  PAYMENT_PROVIDER // maquininha / adquirente / carteira digital
+  OTHER
+}
+
+/// Onde o dinheiro fica. Base para saldo de caixa e transferências internas.
+model FinancialAccount {
+  id             String        @id @default(cuid())
+  name           String        @unique
+  type           AccountType
+  operationId    String?       @map("operation_id")
+  operation      Operation?    @relation(fields: [operationId], references: [id])
+  openingBalance Int           @default(0) @map("opening_balance") // centavos
+  openingDate    DateTime      @map("opening_date") @db.Date
+  active         Boolean       @default(true)
+  notes          String?
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  installments   Installment[]
+  transfersOut   Transfer[]    @relation("TransferFrom")
+  transfersIn    Transfer[]    @relation("TransferTo")
+
+  @@map("financial_accounts")
+}
+
+// ---------------------------------------------------------------------------
+// Financeiro
+// ---------------------------------------------------------------------------
+
+enum EntryType {
+  INCOME // entrada
+  EXPENSE // saída
+}
+
+/// Grupo contábil-gerencial da categoria. Define onde ela aparece no resultado (DRE).
+enum CategoryGroup {
+  SALES // vendas (faturamento)
+  OTHER_INCOME // outras receitas
+  SALES_DEDUCTION // estornos, devoluções
+  FINANCIAL_FEES // taxas de cartão, tarifas bancárias
+  PRODUCTION_COST // matérias-primas, insumos, embalagens, custos de fabricação
+  PAYROLL // salários, encargos, benefícios
+  OPERATING_EXPENSE // aluguel, contas de consumo, manutenção...
+  ADMINISTRATIVE_EXPENSE // contador, sistemas, material de escritório...
+  TAXES // impostos sobre a operação
+  OTHER_EXPENSE
+  OWNER_WITHDRAWAL // retiradas do proprietário — fora do resultado
+  INVESTMENT // equipamentos, reformas — fora do resultado
+}
+
+model Category {
+  id        String        @id @default(cuid())
+  type      EntryType
+  group     CategoryGroup
+  name      String
+  active    Boolean       @default(true)
+  sortOrder Int           @default(0) @map("sort_order")
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+  entries   Entry[]
+
+  @@unique([type, name])
+  @@map("categories")
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  document  String? // CNPJ/CPF
+  phone     String?
+  email     String?
+  notes     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  entries   Entry[]
+
+  @@map("suppliers")
+}
+
+enum EntrySource {
+  MANUAL
+  ORDER // gerado por pedido online (etapa 4)
+  KIOSK_CLOSING // gerado por fechamento de caixa do quiosque (etapa 4)
+  PAYROLL // gerado por folha de pagamento (etapa 4)
+  PURCHASE // gerado por compra de matéria-prima (etapa 4)
+}
+
+/// Lançamento financeiro (eixo de COMPETÊNCIA). Ver docs/05-regras-financeiras.md.
+model Entry {
+  id             String        @id @default(cuid())
+  type           EntryType
+  description    String
+  amount         Int // valor total bruto, em centavos (> 0)
+  competenceDate DateTime      @map("competence_date") @db.Date
+  categoryId     String        @map("category_id")
+  category       Category      @relation(fields: [categoryId], references: [id])
+  operationId    String        @map("operation_id")
+  operation      Operation     @relation(fields: [operationId], references: [id])
+  supplierId     String?       @map("supplier_id")
+  supplier       Supplier?     @relation(fields: [supplierId], references: [id])
+  source         EntrySource   @default(MANUAL)
+  /// Para estornos: venda original estornada.
+  refundOfId     String?       @map("refund_of_id")
+  refundOf       Entry?        @relation("Refunds", fields: [refundOfId], references: [id])
+  refunds        Entry[]       @relation("Refunds")
+  notes          String?
+  canceledAt     DateTime?     @map("canceled_at")
+  cancelReason   String?       @map("cancel_reason")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  installments   Installment[]
+  attachments    Attachment[]
+
+  @@index([competenceDate])
+  @@index([operationId, competenceDate])
+  @@index([categoryId])
+  @@map("entries")
+}
+
+enum InstallmentStatus {
+  PENDING // a receber / a pagar (vencido é derivado: PENDING + vencimento < hoje)
+  SETTLED // recebido / pago
+}
+
+enum PaymentMethod {
+  PIX
+  CASH
+  DEBIT_CARD
+  CREDIT_CARD
+  BOLETO
+  BANK_TRANSFER
+  OTHER
+}
+
+/// Parcela do lançamento (eixo de CAIXA).
+model Installment {
+  id            String            @id @default(cuid())
+  entryId       String            @map("entry_id")
+  entry         Entry             @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  number        Int // 1..n
+  dueDate       DateTime          @map("due_date") @db.Date
+  amount        Int // centavos, bruto
+  feeAmount     Int               @default(0) @map("fee_amount") // taxa (cartão etc.) — só em entradas
+  paymentMethod PaymentMethod?    @map("payment_method")
+  accountId     String?           @map("account_id")
+  account       FinancialAccount? @relation(fields: [accountId], references: [id])
+  status        InstallmentStatus @default(PENDING)
+  settledAt     DateTime?         @map("settled_at") @db.Date
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  @@unique([entryId, number])
+  @@index([status, dueDate])
+  @@index([settledAt])
+  @@index([accountId])
+  @@map("installments")
+}
+
+/// Transferência interna entre contas. Não é receita nem despesa.
+model Transfer {
+  id            String           @id @default(cuid())
+  date          DateTime         @db.Date
+  amount        Int
+  fromAccountId String           @map("from_account_id")
+  fromAccount   FinancialAccount @relation("TransferFrom", fields: [fromAccountId], references: [id])
+  toAccountId   String           @map("to_account_id")
+  toAccount     FinancialAccount @relation("TransferTo", fields: [toAccountId], references: [id])
+  description   String
+  notes         String?
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  @@index([date])
+  @@map("transfers")
+}
+
+/// Comprovante / documento anexado a um lançamento.
+model Attachment {
+  id          String   @id @default(cuid())
+  entryId     String   @map("entry_id")
+  entry       Entry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  fileName    String   @map("file_name")
+  mimeType    String   @map("mime_type")
+  size        Int
+  storageKey  String   @unique @map("storage_key")
+  sha256      String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([entryId])
+  @@map("attachments")
+}
+
+/// Fechamento mensal: declaração do Val de que os lançamentos do mês estão completos.
+/// Só com meses fechados o resultado é exibido como "calculado" (e não "estimado").
+model PeriodClose {
+  id        String   @id @default(cuid())
+  month     String   @unique // formato AAAA-MM
+  notes     String?
+  closedAt  DateTime @default(now()) @map("closed_at")
+
+  @@map("period_closes")
+}
