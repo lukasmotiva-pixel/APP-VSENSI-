@@ -13,8 +13,14 @@ com acesso exclusivo do proprietário.
 | Financeiro: lançamentos, parcelas, a pagar/receber, baixas, estornos, transferências, anexos, saldos, fechamento mensal | ✅ |
 | Relatórios financeiros: DRE, por operação, fluxo de caixa, categorias, formas de pagamento, comparativo mensal | ✅ |
 | Configurações: operações, contas, categorias, fornecedores, segurança | ✅ |
-| Quiosques (fechamento diário), Pedidos/entregas, CRM, Funcionários, Compras/produção | Próximas etapas |
-| Exportação PDF/Excel, integrações Meta, migração do Modal | Etapa 5 |
+| Quiosques: fechamento de caixa diário, painel individual e comparativo | ✅ |
+| Pedidos: fluxo de 8 etapas, entregas (Correios/carro/excursão), venda automática no financeiro | ✅ |
+| Atendimento (CRM): clientes, atendimentos, oportunidades, respostas rápidas, conversão | ✅ |
+| Pessoas: funcionários, salários, geração da folha mensal | ✅ |
+| Compras e produção: custos por fornecedor/categoria, boletos, custo × faturamento | ✅ |
+| Exportação Excel (lançamentos) e PDF (impressão dos relatórios) | ✅ |
+| App instalável no celular (PWA) e implantação com Docker | ✅ |
+| Integração WhatsApp/Instagram (APIs Meta) e migração do Modal | Aguardando contas/informações — ver [docs/07](docs/07-integracoes.md) |
 
 ## Documentação
 
@@ -23,7 +29,8 @@ com acesso exclusivo do proprietário.
 - [Plano de execução](docs/03-plano-de-execucao.md)
 - [Pendências e perguntas para o Val](docs/04-pendencias-e-perguntas.md)
 - [Regras financeiras](docs/05-regras-financeiras.md) — o que cada número significa
-- [Instalação, operação e backup](docs/06-operacao.md)
+- [Instalação, operação, backup e instalação no celular](docs/06-operacao.md)
+- [Integrações externas e migração do Modal](docs/07-integracoes.md)
 
 ## Desenvolvimento rápido
 

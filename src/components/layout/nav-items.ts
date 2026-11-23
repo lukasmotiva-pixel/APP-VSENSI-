@@ -1,10 +1,20 @@
-import { ArrowDownLeft, ArrowUpRight, BarChart3, CalendarCheck, LayoutDashboard, ListOrdered, Repeat, Settings, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, BarChart3, CalendarCheck, Factory, LayoutDashboard, ListOrdered, MessagesSquare, Repeat, Settings, ShoppingBag, Store, Users, Wallet } from "lucide-react";
 
 /** Apenas módulos já implementados aparecem no menu (sem links para telas inexistentes). */
 export const NAV_SECTIONS = [
   {
     title: "Visão geral",
     items: [{ href: "/", label: "Início", icon: LayoutDashboard, exact: true }],
+  },
+  {
+    title: "Operação",
+    items: [
+      { href: "/quiosques", label: "Quiosques", icon: Store },
+      { href: "/pedidos", label: "Pedidos", icon: ShoppingBag },
+      { href: "/crm", label: "Atendimento", icon: MessagesSquare },
+      { href: "/pessoas", label: "Pessoas", icon: Users },
+      { href: "/producao", label: "Compras e produção", icon: Factory },
+    ],
   },
   {
     title: "Financeiro",

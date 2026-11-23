@@ -57,6 +57,8 @@ interface Props {
   initial?: EntryFormInitial;
   /** Pré-preenchimento de estorno */
   refund?: { id: string; description: string; amount: number; operationId: string };
+  /** Pré-seleções vindas de atalhos (ex.: "Nova compra" em Produção, "Despesa" do quiosque). */
+  preset?: { operationId?: string; categoryId?: string; supplierId?: string };
 }
 
 function Segmented<T extends string>({ value, onChange, options, disabled }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[]; disabled?: boolean }) {
@@ -82,7 +84,7 @@ function Segmented<T extends string>({ value, onChange, options, disabled }: { v
   );
 }
 
-export function EntryForm({ today, defaultType, categories, operations, accounts, suppliers, initial, refund }: Props) {
+export function EntryForm({ today, defaultType, categories, operations, accounts, suppliers, initial, refund, preset }: Props) {
   const [state, formAction, pending] = useActionState(saveEntryAction, initialActionState);
   useActionRedirect(state);
   const busy = pending || Boolean(state.ok && state.redirectTo);
@@ -95,9 +97,9 @@ export function EntryForm({ today, defaultType, categories, operations, accounts
   const [competenceDate, setCompetenceDate] = useState(initial?.competenceDate ?? today);
   const typeCategories = categories.filter((c) => c.type === type);
   const defaultCategory = refund ? typeCategories.find((c) => c.group === "SALES_DEDUCTION")?.id : undefined;
-  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? defaultCategory ?? "");
-  const [operationId, setOperationId] = useState(initial?.operationId ?? refund?.operationId ?? "");
-  const [supplierId, setSupplierId] = useState(initial?.supplierId ?? "");
+  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? defaultCategory ?? preset?.categoryId ?? "");
+  const [operationId, setOperationId] = useState(initial?.operationId ?? refund?.operationId ?? preset?.operationId ?? "");
+  const [supplierId, setSupplierId] = useState(initial?.supplierId ?? preset?.supplierId ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
 
   const initialMode: Mode = !initial ? "settled" : initial.installments.length > 1 ? "installments" : first?.status === "SETTLED" ? "settled" : "pending";

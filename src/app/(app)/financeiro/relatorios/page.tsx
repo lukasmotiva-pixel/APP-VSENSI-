@@ -14,8 +14,10 @@ import {
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState, PageHeader } from "@/components/ui/page-header";
+import { buttonClass } from "@/components/ui/button";
 import { ParamSelect, PeriodFilter } from "@/components/ui/filters";
 import { CashFlowChart, HBar } from "@/components/charts";
+import { PrintButton } from "@/components/ui/print-button";
 
 export const metadata = { title: "Relatórios financeiros" };
 
@@ -46,7 +48,16 @@ export default async function ReportsPage({ searchParams }: { searchParams: Sear
 
   return (
     <>
-      <PageHeader title="Relatórios financeiros" description={`${period.label}${operationId ? ` · ${operations.find((o) => o.id === operationId)?.name ?? ""}` : " · Consolidado"}`} />
+      <PageHeader
+        title="Relatórios financeiros"
+        description={`${period.label}${operationId ? ` · ${operations.find((o) => o.id === operationId)?.name ?? ""}` : " · Consolidado"}`}
+        actions={
+          <>
+            <PrintButton />
+            <a href={`/api/exportar/lancamentos?p=${period.key}&de=${period.from}&ate=${period.to}${operationId ? `&operacao=${operationId}` : ""}`} className={buttonClass("secondary")}>Excel (lançamentos)</a>
+          </>
+        }
+      />
       <nav className="-mx-4 mb-4 overflow-x-auto px-4 sm:mx-0 sm:px-0" aria-label="Relatórios">
         <ul className="flex w-max gap-1 rounded-lg border border-line-strong bg-surface p-1 text-sm">
           {TABS.map((t) => (

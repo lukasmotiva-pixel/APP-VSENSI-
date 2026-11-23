@@ -102,17 +102,20 @@ enum OperationType {
 
 /// Unidade de negócio (centro de resultado). Nomes e endereços são editáveis pelo Val.
 model Operation {
-  id          String             @id @default(cuid())
-  type        OperationType
-  name        String             @unique
-  address     String?
-  notes       String?
-  active      Boolean            @default(true)
-  sortOrder   Int                @default(0) @map("sort_order")
-  createdAt   DateTime           @default(now()) @map("created_at")
-  updatedAt   DateTime           @updatedAt @map("updated_at")
-  entries     Entry[]
-  accounts    FinancialAccount[]
+  id        String             @id @default(cuid())
+  type      OperationType
+  name      String             @unique
+  address   String?
+  notes     String?
+  active    Boolean            @default(true)
+  sortOrder Int                @default(0) @map("sort_order")
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+  entries   Entry[]
+  accounts  FinancialAccount[]
+  closings  KioskClosing[]
+  employees Employee[]
+  orders    Order[]
 
   @@map("operations")
 }
@@ -126,20 +129,24 @@ enum AccountType {
 
 /// Onde o dinheiro fica. Base para saldo de caixa e transferências internas.
 model FinancialAccount {
-  id             String        @id @default(cuid())
-  name           String        @unique
+  id             String         @id @default(cuid())
+  name           String         @unique
   type           AccountType
-  operationId    String?       @map("operation_id")
-  operation      Operation?    @relation(fields: [operationId], references: [id])
-  openingBalance Int           @default(0) @map("opening_balance") // centavos
-  openingDate    DateTime      @map("opening_date") @db.Date
-  active         Boolean       @default(true)
+  operationId    String?        @map("operation_id")
+  operation      Operation?     @relation(fields: [operationId], references: [id])
+  openingBalance Int            @default(0) @map("opening_balance") // centavos
+  openingDate    DateTime       @map("opening_date") @db.Date
+  active         Boolean        @default(true)
   notes          String?
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
   installments   Installment[]
-  transfersOut   Transfer[]    @relation("TransferFrom")
-  transfersIn    Transfer[]    @relation("TransferTo")
+  transfersOut   Transfer[]     @relation("TransferFrom")
+  transfersIn    Transfer[]     @relation("TransferTo")
+  closingsCash   KioskClosing[] @relation("ClosingCash")
+  closingsPix    KioskClosing[] @relation("ClosingPix")
+  closingsCard   KioskClosing[] @relation("ClosingCard")
+  orders         Order[]
 
   @@map("financial_accounts")
 }
@@ -209,29 +216,33 @@ enum EntrySource {
 
 /// Lançamento financeiro (eixo de COMPETÊNCIA). Ver docs/05-regras-financeiras.md.
 model Entry {
-  id             String        @id @default(cuid())
+  id             String         @id @default(cuid())
   type           EntryType
   description    String
   amount         Int // valor total bruto, em centavos (> 0)
-  competenceDate DateTime      @map("competence_date") @db.Date
-  categoryId     String        @map("category_id")
-  category       Category      @relation(fields: [categoryId], references: [id])
-  operationId    String        @map("operation_id")
-  operation      Operation     @relation(fields: [operationId], references: [id])
-  supplierId     String?       @map("supplier_id")
-  supplier       Supplier?     @relation(fields: [supplierId], references: [id])
-  source         EntrySource   @default(MANUAL)
+  competenceDate DateTime       @map("competence_date") @db.Date
+  categoryId     String         @map("category_id")
+  category       Category       @relation(fields: [categoryId], references: [id])
+  operationId    String         @map("operation_id")
+  operation      Operation      @relation(fields: [operationId], references: [id])
+  supplierId     String?        @map("supplier_id")
+  supplier       Supplier?      @relation(fields: [supplierId], references: [id])
+  source         EntrySource    @default(MANUAL)
   /// Para estornos: venda original estornada.
-  refundOfId     String?       @map("refund_of_id")
-  refundOf       Entry?        @relation("Refunds", fields: [refundOfId], references: [id])
-  refunds        Entry[]       @relation("Refunds")
+  refundOfId     String?        @map("refund_of_id")
+  refundOf       Entry?         @relation("Refunds", fields: [refundOfId], references: [id])
+  refunds        Entry[]        @relation("Refunds")
   notes          String?
-  canceledAt     DateTime?     @map("canceled_at")
-  cancelReason   String?       @map("cancel_reason")
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
+  canceledAt     DateTime?      @map("canceled_at")
+  cancelReason   String?        @map("cancel_reason")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
   installments   Installment[]
   attachments    Attachment[]
+  // Documento de origem (no máximo um, garantido por chave única no lado da origem)
+  kioskClosing   KioskClosing?
+  order          Order?
+  salaryPayment  SalaryPayment?
 
   @@index([competenceDate])
   @@index([operationId, competenceDate])
@@ -297,15 +308,15 @@ model Transfer {
 
 /// Comprovante / documento anexado a um lançamento.
 model Attachment {
-  id          String   @id @default(cuid())
-  entryId     String   @map("entry_id")
-  entry       Entry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  fileName    String   @map("file_name")
-  mimeType    String   @map("mime_type")
-  size        Int
-  storageKey  String   @unique @map("storage_key")
-  sha256      String
-  createdAt   DateTime @default(now()) @map("created_at")
+  id         String   @id @default(cuid())
+  entryId    String   @map("entry_id")
+  entry      Entry    @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  fileName   String   @map("file_name")
+  mimeType   String   @map("mime_type")
+  size       Int
+  storageKey String   @unique @map("storage_key")
+  sha256     String
+  createdAt  DateTime @default(now()) @map("created_at")
 
   @@index([entryId])
   @@map("attachments")
@@ -314,10 +325,249 @@ model Attachment {
 /// Fechamento mensal: declaração do Val de que os lançamentos do mês estão completos.
 /// Só com meses fechados o resultado é exibido como "calculado" (e não "estimado").
 model PeriodClose {
-  id        String   @id @default(cuid())
-  month     String   @unique // formato AAAA-MM
-  notes     String?
-  closedAt  DateTime @default(now()) @map("closed_at")
+  id       String   @id @default(cuid())
+  month    String   @unique // formato AAAA-MM
+  notes    String?
+  closedAt DateTime @default(now()) @map("closed_at")
 
   @@map("period_closes")
+}
+
+// ---------------------------------------------------------------------------
+// Quiosques — fechamento de caixa diário
+// ---------------------------------------------------------------------------
+
+/// Total vendido por um quiosque em um dia, separado por forma de pagamento.
+/// Gera exatamente UM lançamento financeiro (entryId único).
+model KioskClosing {
+  id                String            @id @default(cuid())
+  operationId       String            @map("operation_id")
+  operation         Operation         @relation(fields: [operationId], references: [id])
+  date              DateTime          @db.Date
+  cash              Int               @default(0)
+  pix               Int               @default(0)
+  debit             Int               @default(0)
+  credit            Int               @default(0)
+  other             Int               @default(0)
+  debitFee          Int               @default(0) @map("debit_fee")
+  creditFee         Int               @default(0) @map("credit_fee")
+  /// Data prevista para o dinheiro do crédito cair (se futura, fica a receber).
+  creditReceiveDate DateTime?         @map("credit_receive_date") @db.Date
+  cashAccountId     String?           @map("cash_account_id")
+  cashAccount       FinancialAccount? @relation("ClosingCash", fields: [cashAccountId], references: [id])
+  pixAccountId      String?           @map("pix_account_id")
+  pixAccount        FinancialAccount? @relation("ClosingPix", fields: [pixAccountId], references: [id])
+  cardAccountId     String?           @map("card_account_id")
+  cardAccount       FinancialAccount? @relation("ClosingCard", fields: [cardAccountId], references: [id])
+  notes             String?
+  entryId           String?           @unique @map("entry_id")
+  entry             Entry?            @relation(fields: [entryId], references: [id])
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  @@unique([operationId, date])
+  @@index([date])
+  @@map("kiosk_closings")
+}
+
+// ---------------------------------------------------------------------------
+// Produtos, CRM e pedidos (operação online)
+// ---------------------------------------------------------------------------
+
+model Product {
+  id         String      @id @default(cuid())
+  name       String      @unique
+  price      Int // centavos
+  active     Boolean     @default(true)
+  notes      String?
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+  orderItems OrderItem[]
+
+  @@map("products")
+}
+
+enum Channel {
+  WHATSAPP
+  INSTAGRAM
+  KIOSK
+  OTHER
+}
+
+model Customer {
+  id           String        @id @default(cuid())
+  name         String
+  phone        String?
+  instagram    String?
+  channel      Channel       @default(WHATSAPP) // canal de origem
+  city         String?
+  address      String?
+  notes        String?
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  interactions Interaction[]
+  orders       Order[]
+
+  @@index([name])
+  @@index([phone])
+  @@map("customers")
+}
+
+enum InteractionStatus {
+  PENDING // aguardando resposta/retorno
+  INTERESTED // oportunidade em andamento
+  CONVERTED // gerou venda
+  LOST // não comprou
+}
+
+/// Registro de um atendimento (conversa) com o cliente.
+model Interaction {
+  id           String            @id @default(cuid())
+  customerId   String            @map("customer_id")
+  customer     Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  channel      Channel
+  date         DateTime          @db.Date
+  summary      String
+  status       InteractionStatus @default(PENDING)
+  attendant    String? // quem atendeu (apenas histórico; não é usuário do sistema)
+  followUpDate DateTime?         @map("follow_up_date") @db.Date
+  orderId      String?           @map("order_id")
+  order        Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  @@index([date])
+  @@index([status])
+  @@map("interactions")
+}
+
+model QuickReply {
+  id        String   @id @default(cuid())
+  title     String
+  text      String
+  category  String?
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("quick_replies")
+}
+
+enum OrderStatus {
+  RECEIVED
+  AWAITING_PAYMENT
+  PAYMENT_CONFIRMED
+  IN_PREPARATION
+  READY_TO_SHIP
+  SHIPPED
+  DELIVERED
+  CANCELED
+}
+
+enum DeliveryMethod {
+  CORREIOS
+  CAR
+  EXCURSION
+  PICKUP
+}
+
+model Order {
+  id               String               @id @default(cuid())
+  number           Int                  @unique @default(autoincrement())
+  customerId       String               @map("customer_id")
+  customer         Customer             @relation(fields: [customerId], references: [id])
+  operationId      String               @map("operation_id")
+  operation        Operation            @relation(fields: [operationId], references: [id])
+  channel          Channel
+  orderDate        DateTime             @map("order_date") @db.Date
+  status           OrderStatus          @default(RECEIVED)
+  subtotal         Int
+  discount         Int                  @default(0)
+  shippingFee      Int                  @default(0) @map("shipping_fee")
+  total            Int
+  paymentMethod    PaymentMethod?       @map("payment_method")
+  accountId        String?              @map("account_id")
+  account          FinancialAccount?    @relation(fields: [accountId], references: [id])
+  paidAt           DateTime?            @map("paid_at") @db.Date
+  attendant        String?
+  deliveryMethod   DeliveryMethod?      @map("delivery_method")
+  address          String?
+  trackingCode     String?              @map("tracking_code")
+  deliveryPerson   String?              @map("delivery_person")
+  excursionInfo    String?              @map("excursion_info")
+  expectedDelivery DateTime?            @map("expected_delivery") @db.Date
+  notes            String?
+  entryId          String?              @unique @map("entry_id")
+  entry            Entry?               @relation(fields: [entryId], references: [id])
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+  items            OrderItem[]
+  history          OrderStatusHistory[]
+  interactions     Interaction[]
+
+  @@index([status])
+  @@index([orderDate])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String   @map("order_id")
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String?  @map("product_id")
+  product     Product? @relation(fields: [productId], references: [id])
+  description String
+  quantity    Int
+  unitPrice   Int      @map("unit_price")
+
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(cuid())
+  orderId   String      @map("order_id")
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    OrderStatus
+  note      String?
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  @@index([orderId])
+  @@map("order_status_history")
+}
+
+// ---------------------------------------------------------------------------
+// Pessoas — funcionários e salários
+// ---------------------------------------------------------------------------
+
+model Employee {
+  id          String          @id @default(cuid())
+  name        String
+  role        String? // cargo/função
+  operationId String?         @map("operation_id")
+  operation   Operation?      @relation(fields: [operationId], references: [id])
+  salary      Int // salário fixo mensal, centavos
+  paymentDay  Int             @map("payment_day") // dia do mês (1-31)
+  hireDate    DateTime?       @map("hire_date") @db.Date
+  active      Boolean         @default(true)
+  notes       String?
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  payments    SalaryPayment[]
+
+  @@map("employees")
+}
+
+/// Salário de um funcionário em um mês. Gera um lançamento de saída (Pessoal).
+model SalaryPayment {
+  id         String   @id @default(cuid())
+  employeeId String   @map("employee_id")
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  month      String // AAAA-MM
+  amount     Int
+  entryId    String?  @unique @map("entry_id")
+  entry      Entry?   @relation(fields: [entryId], references: [id])
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([employeeId, month])
+  @@map("salary_payments")
 }

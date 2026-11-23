@@ -15,6 +15,8 @@ export const PAYMENT_METHOD_LABELS: Record<(typeof PAYMENT_METHODS)[number], str
 };
 
 export const isoDate = z.string().refine(isValidISODate, "Data inválida.");
+/** Data opcional: vazio ("") vira null — campos de data não preenchidos chegam assim dos formulários. */
+export const optionalIsoDate = z.preprocess((v) => (v === "" || v === undefined ? null : v), isoDate.nullable());
 const cents = z.number().int("Valor inválido.").max(MAX_CENTS, "Valor alto demais.");
 const optionalId = z.string().min(1).max(40).nullish().transform((v) => v || null);
 const optionalText = (max: number) =>
@@ -29,7 +31,7 @@ export const installmentInputSchema = z
     paymentMethod: z.enum(PAYMENT_METHODS).nullish().transform((v) => v ?? null),
     accountId: optionalId,
     settled: z.boolean(),
-    settledAt: isoDate.nullish().transform((v) => v ?? null),
+    settledAt: optionalIsoDate,
   })
   .superRefine((i, ctx) => {
     if (i.feeAmount > i.amount) ctx.addIssue({ code: "custom", path: ["feeAmount"], message: "A taxa não pode ser maior que a parcela." });

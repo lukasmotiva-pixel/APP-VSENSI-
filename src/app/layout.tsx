@@ -5,7 +5,9 @@ export const metadata: Metadata = {
   title: { default: "V'Sensi Gestão", template: "%s · V'Sensi Gestão" },
   description: "Sistema de gestão da V'Sensi",
   robots: { index: false, follow: false },
-  icons: { icon: "/icon.svg" },
+  icons: { icon: "/icon.svg", apple: "/icons/apple-touch-icon.png" },
+  appleWebApp: { capable: true, title: "V'Sensi", statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {

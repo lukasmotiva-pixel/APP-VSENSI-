@@ -22,7 +22,13 @@ export default async function NewEntryPage({ searchParams }: { searchParams: Sea
         title={refund ? "Registrar estorno" : "Novo lançamento"}
         description={refund ? "Saída vinculada à venda original. Reduz a receita líquida sem apagar a venda." : "Registre uma entrada ou saída. Use “Parcelado” para cartão em várias vezes ou boletos."}
       />
-      <EntryForm today={todayISO()} defaultType={type} refund={refund} {...options} />
+      <EntryForm
+        today={todayISO()}
+        defaultType={type}
+        refund={refund}
+        preset={{ operationId: param(sp, "operacao"), categoryId: param(sp, "categoria"), supplierId: param(sp, "fornecedor") }}
+        {...options}
+      />
     </div>
   );
 }

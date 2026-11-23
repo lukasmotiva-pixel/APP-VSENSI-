@@ -22,7 +22,7 @@ export function Brand({ dark = true }: { dark?: boolean }) {
 export function Sidebar({ userName }: { userName: string }) {
   const pathname = usePathname();
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-graphite-900 lg:flex">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-graphite-900 lg:flex print:!hidden">
       <div className="px-5 py-5">
         <Brand />
       </div>

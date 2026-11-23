@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, LayoutDashboard, ListOrdered, LogOut, Menu, Plus, Repeat, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, LayoutDashboard, LogOut, Menu, Plus, Repeat, ShoppingBag, Store, UserPlus, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Brand } from "./sidebar";
 import { NAV_SECTIONS, isActive } from "./nav-items";
@@ -11,13 +11,13 @@ import { logoutAction } from "@/modules/auth-actions";
 
 const TABS = [
   { href: "/", label: "Início", icon: LayoutDashboard, exact: true },
-  { href: "/financeiro", label: "Lançamentos", icon: ListOrdered, exact: true },
-  { href: "/financeiro/a-pagar", label: "A pagar", icon: ArrowUpRight },
+  { href: "/pedidos", label: "Pedidos", icon: ShoppingBag },
+  { href: "/quiosques", label: "Quiosques", icon: Store },
 ];
 
 export function MobileTopBar() {
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-white/10 bg-graphite-900 px-4 lg:hidden">
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-white/10 bg-graphite-900 px-4 lg:hidden print:hidden">
       <Brand />
     </header>
   );
@@ -37,7 +37,7 @@ export function MobileBottomNav() {
 
   return (
     <>
-      <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur lg:hidden" aria-label="Navegação">
+      <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur lg:hidden print:hidden" aria-label="Navegação">
         <ul className="mx-auto grid max-w-lg grid-cols-5 items-end px-1 pt-1.5">
           {TABS.slice(0, 2).map((t) => (
             <TabLink key={t.href} {...t} active={isActive(pathname, t.href, t.exact)} />
@@ -80,6 +80,9 @@ export function MobileBottomNav() {
             </div>
             {sheet === "new" ? (
               <div className="grid gap-2 pb-3">
+                <SheetLink href="/quiosques/fechamento" icon={Store} label="Fechamento de caixa" desc="Vendas do dia de um quiosque" />
+                <SheetLink href="/pedidos/novo" icon={ShoppingBag} label="Novo pedido" desc="Venda online (WhatsApp, Instagram)" />
+                <SheetLink href="/crm/clientes/novo" icon={UserPlus} label="Novo cliente" desc="Cadastro para atendimento" />
                 <SheetLink href="/financeiro/novo?tipo=entrada" icon={ArrowDownLeft} label="Nova entrada" desc="Venda, recebimento ou outra receita" />
                 <SheetLink href="/financeiro/novo?tipo=saida" icon={ArrowUpRight} label="Nova saída" desc="Despesa, compra, boleto, salário" />
                 <SheetLink href="/financeiro/transferencias" icon={Repeat} label="Transferência entre contas" desc="Ex.: depósito do caixa no banco" />

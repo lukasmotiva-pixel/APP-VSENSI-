@@ -62,3 +62,12 @@ body {
 input[type="date"]::-webkit-calendar-picker-indicator {
   opacity: 0.6;
 }
+
+@media print {
+  body {
+    background: #fff;
+  }
+  .print\:break-inside-avoid {
+    break-inside: avoid;
+  }
+}

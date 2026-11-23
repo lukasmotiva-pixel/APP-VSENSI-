@@ -36,7 +36,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
   const period = resolvePeriod({ p: param(sp, "p"), de: param(sp, "de"), ate: param(sp, "ate") });
   const range = { from: period.from, to: period.to };
 
-  const [todayStatement, statement, cash, open, completeness, byOperation, daily, balances, accountCount] = await Promise.all([
+  const between = { gte: new Date(`${period.from}T00:00:00Z`), lte: new Date(`${period.to}T00:00:00Z`) };
+  const [todayStatement, statement, cash, open, completeness, byOperation, daily, balances, accountCount, ordersByStatus, openOrders] = await Promise.all([
     getIncomeStatement(prisma, { from: today, to: today }),
     getIncomeStatement(prisma, range),
     getCashSummary(prisma, range),
@@ -46,7 +47,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
     getDailyRevenue(prisma, range),
     getAccountBalances(prisma, today),
     prisma.financialAccount.count(),
+    prisma.order.groupBy({ by: ["status"], where: { orderDate: between }, _count: true, _sum: { total: true } }),
+    prisma.order.groupBy({ by: ["status"], where: { status: { notIn: ["DELIVERED", "CANCELED"] } }, _count: true }),
   ]);
+  const ordersIn = (statuses: string[]) => ordersByStatus.filter((o) => statuses.includes(o.status)).reduce((a, o) => a + o._count, 0);
+  const openCount = (statuses: string[]) => openOrders.filter((o) => statuses.includes(o.status)).reduce((a, o) => a + o._count, 0);
+  const totalOrders = ordersByStatus.filter((o) => o.status !== "CANCELED").reduce((a, o) => a + o._count, 0);
 
   const estimated = completeness.status === "ESTIMATED";
   const days = diffDaysISO(period.to, period.from) + 1;
@@ -160,6 +166,24 @@ export default async function DashboardPage({ searchParams }: { searchParams: Se
           </CardBody>
         </Card>
       </div>
+
+      <Card className="mt-3">
+        <CardHeader title="Pedidos online" description={`${totalOrders} pedido(s) no período · etapas atuais dos pedidos em andamento`} action={<Link href="/pedidos" className="text-sm text-navy-800 hover:underline">Ver</Link>} />
+        <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-5">
+          {[
+            ["Recebidos", openCount(["RECEIVED"]), "RECEIVED"],
+            ["Aguardando pagamento", openCount(["AWAITING_PAYMENT"]), "AWAITING_PAYMENT"],
+            ["Em preparação", openCount(["PAYMENT_CONFIRMED", "IN_PREPARATION", "READY_TO_SHIP"]), "IN_PREPARATION"],
+            ["Enviados", openCount(["SHIPPED"]), "SHIPPED"],
+            ["Entregues no período", ordersIn(["DELIVERED"]), "DELIVERED"],
+          ].map(([label, n, st]) => (
+            <Link key={label as string} href={`/pedidos?status=${st}`} className="bg-surface px-4 py-3 hover:bg-canvas/60">
+              <p className="text-xs text-muted">{label}</p>
+              <p className="num text-xl font-semibold">{n}</p>
+            </Link>
+          ))}
+        </div>
+      </Card>
 
       <Card className="mt-3">
         <CardHeader title="Desempenho por operação" description="Faturamento e resultado de cada quiosque e do online no período" action={<Link href="/financeiro/relatorios?aba=operacoes" className="text-sm text-navy-800 hover:underline">Detalhes</Link>} />

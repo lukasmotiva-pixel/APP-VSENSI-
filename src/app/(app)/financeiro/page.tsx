@@ -9,7 +9,7 @@ import { entryState } from "@/modules/finance/calculations";
 import { listEntries } from "@/modules/finance/queries";
 import { EntryStatusBadge } from "@/modules/finance/components/status";
 import { Card } from "@/components/ui/card";
-import { LinkButton } from "@/components/ui/button";
+import { buttonClass, LinkButton } from "@/components/ui/button";
 import { EmptyState, Notice, PageHeader } from "@/components/ui/page-header";
 import { ParamSelect, PeriodFilter, SearchInput } from "@/components/ui/filters";
 
@@ -55,6 +55,15 @@ export default async function EntriesPage({ searchParams }: { searchParams: Sear
         title="Lançamentos"
         description={`Entradas e saídas por data de competência · ${period.label}`}
         actions={
+          <>
+          <span className="flex gap-2">
+            <a
+              href={`/api/exportar/lancamentos?${new URLSearchParams(Object.entries(sp).flatMap(([k, v]) => (typeof v === "string" ? [[k, v]] : []))).toString()}`}
+              className={buttonClass("secondary")}
+            >
+              Excel
+            </a>
+          </span>
           <span className="hidden gap-2 sm:flex">
             <LinkButton href="/financeiro/novo?tipo=entrada" variant="secondary">
               <Plus className="size-4" /> Entrada
@@ -63,6 +72,7 @@ export default async function EntriesPage({ searchParams }: { searchParams: Sear
               <Plus className="size-4" /> Saída
             </LinkButton>
           </span>
+          </>
         }
       />
       {param(sp, "excluido") ? <div className="mb-4"><Notice tone="positive">Lançamento excluído.</Notice></div> : null}

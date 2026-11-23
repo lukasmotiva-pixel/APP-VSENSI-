@@ -65,3 +65,31 @@ npm run build && npm run test:e2e   # navegador real, celular e desktop (usa E2E
 ```
 
 Os testes recusam rodar em bancos cujo nome não contenha `test`/`e2e`.
+
+## Colocar no ar (para usar no celular)
+
+O sistema precisa estar hospedado em um servidor com **HTTPS** e um **domínio** (ex.:
+`gestao.suaempresa.com.br`). Opção pronta neste repositório: servidor (VPS) com Docker.
+
+1. Contrate uma VPS Linux (2 GB de RAM são suficientes) e aponte o domínio (registro DNS tipo **A**)
+   para o IP dela.
+2. No servidor, instale o Docker e clone este repositório.
+3. `cp .env.production.example .env.production` e preencha `DOMAIN` e `POSTGRES_PASSWORD`.
+4. `docker compose --env-file .env.production up -d --build` — sobe o banco, o app e o Caddy
+   (que emite o certificado HTTPS automaticamente).
+5. Crie o acesso do Val: `docker compose exec app npm run admin:create`.
+6. Configure o backup diário (`scripts/backup.sh`, ver acima) com cópia para fora do servidor.
+
+> A imagem Docker não pôde ser testada no ambiente de desenvolvimento (sem Docker disponível);
+> valide o primeiro `docker compose up` no servidor.
+
+## Instalar no celular
+
+Depois que o sistema estiver no ar, abra o endereço no celular e entre com o login do Val:
+
+- **iPhone (Safari):** botão Compartilhar → **Adicionar à Tela de Início**.
+- **Android (Chrome):** menu ⋮ → **Instalar app** (ou "Adicionar à tela inicial").
+
+O ícone da V'Sensi aparece na tela e o sistema abre em tela cheia, como um aplicativo.
+Os dados ficam no servidor (não no celular): se o aparelho for perdido, encerre a sessão dele em
+Configurações → Segurança.

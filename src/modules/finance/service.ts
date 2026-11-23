@@ -26,7 +26,7 @@ interface Meta {
 // Verificações compartilhadas
 // ---------------------------------------------------------------------------
 
-async function assertMonthOpen(tx: Tx, isoDate: string): Promise<void> {
+export async function assertMonthOpen(tx: Tx, isoDate: string): Promise<void> {
   const month = monthKey(isoDate);
   const closed = await tx.periodClose.findUnique({ where: { month } });
   if (closed)
@@ -35,7 +35,7 @@ async function assertMonthOpen(tx: Tx, isoDate: string): Promise<void> {
     );
 }
 
-async function assertAccountForDate(tx: Tx, accountId: string, isoDate: string): Promise<void> {
+export async function assertAccountForDate(tx: Tx, accountId: string, isoDate: string): Promise<void> {
   const account = await tx.financialAccount.findUnique({ where: { id: accountId } });
   if (!account) throw new DomainError("Conta financeira não encontrada.", "accountId");
   if (isoDate < toISO(account.openingDate))
@@ -95,6 +95,20 @@ function installmentRows(input: EntryInput) {
     }));
 }
 
+const SOURCE_LABEL = {
+  MANUAL: "",
+  ORDER: "Pedidos",
+  KIOSK_CLOSING: "Quiosques (fechamento de caixa)",
+  PAYROLL: "Pessoas (salários)",
+  PURCHASE: "Compras",
+} as const;
+
+/** Lançamentos gerados por outro módulo só podem ser alterados/cancelados na origem. */
+function assertManual(entry: { source: keyof typeof SOURCE_LABEL }) {
+  if (entry.source !== "MANUAL")
+    throw new DomainError(`Este lançamento foi gerado pelo módulo ${SOURCE_LABEL[entry.source]}. Altere-o por lá.`);
+}
+
 function entrySnapshot(e: { description: string; amount: number; competenceDate: Date; categoryId: string; operationId: string }) {
   return {
     description: e.description,
@@ -151,8 +165,7 @@ export async function updateEntry(db: PrismaClient, entryId: string, raw: unknow
     if (!current) throw new DomainError("Lançamento não encontrado.");
     if (current.canceledAt) throw new DomainError("Lançamentos cancelados não podem ser editados. Desfaça o cancelamento primeiro.");
     if (current.type !== input.type) throw new DomainError("Não é possível trocar o tipo (entrada/saída) de um lançamento.");
-    if (current.source !== "MANUAL")
-      throw new DomainError("Este lançamento foi gerado por outro módulo e deve ser alterado na origem.");
+    assertManual(current);
     await assertMonthOpen(tx, toISO(current.competenceDate));
     await assertMonthOpen(tx, input.competenceDate);
     await validateEntryRefs(tx, input, false);
@@ -195,6 +208,7 @@ export async function cancelEntry(db: PrismaClient, raw: unknown, meta: Meta) {
     const entry = await tx.entry.findUnique({ where: { id: entryId } });
     if (!entry) throw new DomainError("Lançamento não encontrado.");
     if (entry.canceledAt) throw new DomainError("Este lançamento já está cancelado.");
+    assertManual(entry);
     await assertMonthOpen(tx, toISO(entry.competenceDate));
     await tx.entry.update({ where: { id: entryId }, data: { canceledAt: new Date(), cancelReason: reason } });
     await audit(
@@ -209,6 +223,7 @@ export async function restoreEntry(db: PrismaClient, entryId: string, meta: Meta
     const entry = await tx.entry.findUnique({ where: { id: entryId } });
     if (!entry) throw new DomainError("Lançamento não encontrado.");
     if (!entry.canceledAt) throw new DomainError("Este lançamento não está cancelado.");
+    assertManual(entry);
     await assertMonthOpen(tx, toISO(entry.competenceDate));
     await tx.entry.update({ where: { id: entryId }, data: { canceledAt: null, cancelReason: null } });
     await audit(
@@ -226,6 +241,7 @@ export async function deleteEntry(db: PrismaClient, entryId: string, meta: Meta)
       include: { installments: true, attachments: true, refunds: { select: { id: true } } },
     });
     if (!entry) throw new DomainError("Lançamento não encontrado.");
+    assertManual(entry);
     if (entry.refunds.length > 0)
       throw new DomainError("Existem estornos vinculados a esta venda. Exclua ou desvincule os estornos primeiro.");
     await assertMonthOpen(tx, toISO(entry.competenceDate));

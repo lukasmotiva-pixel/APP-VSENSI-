@@ -89,6 +89,8 @@ test.describe("financeiro", () => {
 
     // Relatório de resultado: faturamento conta a venda uma única vez
     await page.goto("/financeiro/relatorios?aba=resultado&p=month");
+    await page.getByLabel("Operação").selectOption({ label: "Quiosque 1" });
+    await expect(page).toHaveURL(/operacao=/);
     await expect(page.getByRole("row", { name: /Faturamento \(receita bruta/ })).toContainText(tag === "celular" ? "R$ 300,00" : "R$ 600,00");
     await expect(page.getByText("Estimado")).toBeVisible();
 
@@ -130,4 +132,102 @@ test("capturas das telas principais", async ({ page }, info) => {
   await page.screenshot({ path: `test-results/lista-${info.project.name}.png`, fullPage: true });
   await page.goto("/financeiro/relatorios?aba=resultado");
   await page.screenshot({ path: `test-results/dre-${info.project.name}.png`, fullPage: true });
+  for (const [name, path] of [["quiosques", "/quiosques"], ["pedidos", "/pedidos?status=todos"], ["crm", "/crm"], ["inicio", "/"]] as const) {
+    await page.goto(path);
+    await page.screenshot({ path: `test-results/${name}-${info.project.name}.png`, fullPage: false });
+  }
+});
+
+test.describe("módulos operacionais", () => {
+  test("app instalável: manifesto e ícones públicos", async ({ request }) => {
+    const m = await request.get("/manifest.webmanifest");
+    expect(m.status()).toBe(200);
+    expect((await m.json()).display).toBe("standalone");
+    expect((await request.get("/icons/icon-192.png")).status()).toBe(200);
+    expect((await request.get("/icons/apple-touch-icon.png")).status()).toBe(200);
+  });
+
+  test("fechamento de caixa gera venda no financeiro", async ({ page }, info) => {
+    const n = info.project.name === "celular" ? "2" : "3";
+    await login(page);
+    await page.goto("/quiosques/fechamento");
+    await page.getByLabel("Quiosque").selectOption({ label: `Quiosque ${n}` });
+    await page.getByLabel("Dinheiro", { exact: true }).fill("100");
+    await page.getByLabel("Pix", { exact: true }).fill("50");
+    await page.getByLabel("Cartão de crédito").fill("80");
+    await page.getByLabel("Taxa do crédito").fill("2,40");
+    await page.getByRole("button", { name: "Registrar fechamento" }).click();
+    await expect(page.getByText("Fechamento salvo e lançado no financeiro.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: `Quiosque ${n}` })).toBeVisible();
+    await page.goto("/financeiro?q=Fechamento");
+    await expect(page.getByText(`Fechamento de caixa — Quiosque ${n}`).filter({ visible: true }).first()).toBeVisible();
+  });
+
+  test("pedido: novo cliente → pagamento confirmado → venda registrada", async ({ page }, info) => {
+    const name = `Cliente E2E ${info.project.name}`;
+    await login(page);
+    await page.goto("/pedidos/novo");
+    const toggle = page.getByRole("button", { name: "+ Novo cliente" });
+    if (await toggle.isVisible()) await toggle.click();
+    await page.getByLabel("Nome do cliente").fill(name);
+    await page.getByLabel("Telefone / WhatsApp").fill("11988887777");
+    await page.getByLabel("Descrição").fill("Difusor 250 ml");
+    await page.getByLabel("Qtd.").fill("2");
+    await page.getByLabel("Preço un.").fill("45");
+    await page.getByLabel("Frete cobrado").fill("15");
+    await page.getByLabel("Forma de pagamento").selectOption({ label: "Pix" });
+    await page.getByLabel("Método de entrega").selectOption({ label: "Correios" });
+    await page.getByLabel("Código de rastreamento").fill("aa123456789br");
+    await page.getByRole("button", { name: /Registrar pedido · R\$ 105,00/ }).click();
+    await expect(page.getByText("Pedido salvo.")).toBeVisible();
+    await page.getByRole("button", { name: /Avançar: Aguardando pagamento/ }).click();
+    await page.getByRole("button", { name: "Confirmar" }).click();
+    await expect(page.getByText("Etapa atual: Aguardando pagamento")).toBeVisible();
+    await page.getByRole("button", { name: /Avançar: Pagamento confirmado/ }).click();
+    await page.getByRole("button", { name: "Confirmar" }).click();
+    await expect(page.getByText("Etapa atual: Pagamento confirmado")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Ver lançamento financeiro" })).toBeVisible();
+    await expect(page.getByText("AA123456789BR")).toBeVisible();
+  });
+
+  test("CRM: cliente, atendimento e resposta rápida", async ({ page }, info) => {
+    await login(page);
+    await page.goto("/crm/clientes/novo");
+    await page.getByLabel("Nome").fill(`Interessada ${info.project.name}`);
+    await page.getByRole("button", { name: "Cadastrar cliente" }).click();
+    await expect(page.getByText("Cliente salvo.")).toBeVisible();
+    await page.getByLabel("O que foi conversado").fill("Pediu catálogo de aromatizantes");
+    await page.getByLabel("Situação").selectOption("INTERESTED");
+    await page.getByRole("button", { name: "Registrar atendimento" }).click();
+    await expect(page.getByText("Pediu catálogo de aromatizantes")).toBeVisible();
+    await page.goto("/crm");
+    await expect(page.getByText(`Interessada ${info.project.name}`)).toBeVisible();
+    await page.goto("/crm/respostas");
+    await page.getByLabel("Título").fill(`Pagamento ${info.project.name}`);
+    await page.getByLabel("Texto da resposta").fill("Aceitamos Pix e cartão.");
+    await page.getByRole("button", { name: "Adicionar resposta" }).click();
+    await expect(page.getByText("Resposta salva.")).toBeVisible();
+  });
+
+  test("pessoas: funcionário e geração da folha", async ({ page }, info) => {
+    await login(page);
+    await page.goto("/pessoas/novo");
+    await page.getByLabel("Nome").fill(`Funcionária ${info.project.name}`);
+    await page.getByLabel("Salário fixo mensal").fill("2.000,00");
+    await page.getByRole("button", { name: "Cadastrar funcionário" }).click();
+    await expect(page.getByText("Funcionário salvo.")).toBeVisible();
+    await page.goto("/pessoas");
+    await page.getByRole("button", { name: "Gerar salários do mês" }).click();
+    await expect(page.getByText(/salário\(s\) gerado\(s\)|Nenhum salário novo/)).toBeVisible();
+    await expect(page.getByText(`Funcionária ${info.project.name}`).first()).toBeVisible();
+  });
+
+  test("novas telas sem rolagem horizontal", async ({ page }) => {
+    await login(page);
+    for (const path of ["/quiosques", "/quiosques/fechamento", "/pedidos", "/pedidos/novo", "/crm", "/crm/clientes", "/crm/respostas", "/pessoas", "/producao", "/configuracoes/produtos"]) {
+      await page.goto(path);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow, path).toBeLessThanOrEqual(0);
+    }
+  });
 });
