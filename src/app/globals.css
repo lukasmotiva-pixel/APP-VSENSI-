@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+/*
+ * Identidade visual: grafite/preto, branco e azul-marinho profundo, com neutros para organizar.
+ * Cores de estado (positivo/negativo/atenção) usadas apenas para comunicar significado.
+ */
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --color-ink: #0e1116;
+  --color-graphite-950: #0c0e12;
+  --color-graphite-900: #14171c;
+  --color-graphite-800: #1d2128;
+  --color-graphite-700: #2a2f38;
+
+  --color-navy-950: #071428;
+  --color-navy-900: #0b1e3b;
+  --color-navy-800: #12305c;
+  --color-navy-700: #1b4079;
+  --color-navy-100: #e6ecf5;
+  --color-navy-50: #f2f5fa;
+
+  --color-surface: #ffffff;
+  --color-canvas: #f4f5f7;
+  --color-line: #e3e6eb;
+  --color-line-strong: #cfd4dc;
+  --color-muted: #5d6573;
+  --color-subtle: #8a92a0;
+
+  --color-positive: #17663f;
+  --color-positive-soft: #e7f3ec;
+  --color-negative: #b42318;
+  --color-negative-soft: #fbeceb;
+  --color-warning: #9a5b07;
+  --color-warning-soft: #fdf3e2;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Área segura de iPhone para a barra inferior */
+.pb-safe {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 0.6;
+}

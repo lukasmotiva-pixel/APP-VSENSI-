@@ -8,6 +8,11 @@ export interface ActionState {
   fieldErrors?: Record<string, string>;
   /** Dados opcionais (ex.: códigos de recuperação gerados). */
   data?: unknown;
+  /**
+   * Destino após sucesso. A navegação é feita no cliente (useActionRedirect): o redirect()
+   * dentro de Server Actions usadas com useActionState mostrou-se intermitente no Next 15.
+   */
+  redirectTo?: string;
 }
 
 export const initialActionState: ActionState = { ok: false };

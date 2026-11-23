@@ -87,3 +87,12 @@ Regras de dependência:
 As integrações com WhatsApp/Instagram (APIs oficiais da Meta) e a migração do Modal serão
 **investigadas na etapa do módulo de CRM**, com verificação das documentações oficiais, requisitos e
 custos reais. Nada será simulado: enquanto não houver integração, o registro será manual.
+
+## 7. Decisões técnicas registradas
+
+- **Sem `loading.tsx` na raiz da área protegida.** Com ele, no Next 15.5, a transição do roteador após
+  Server Actions (navegação ou atualização da tela) ficava presa de forma intermitente — em testes
+  automatizados, até 7 de 8 envios no celular. Sem ele: 0 falhas em 32 envios. As páginas respondem
+  em poucos milissegundos, então o esqueleto de carregamento não faz falta.
+- **Navegação após salvar é feita no cliente** (`redirectTo` + `useActionRedirect`), não com `redirect()`
+  dentro da Server Action, para manter o comportamento previsível.
